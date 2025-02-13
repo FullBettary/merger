@@ -1,14 +1,12 @@
 from PIL import Image, ImageOps
-from pdf2image import convert_from_bytes
 import pdfplumber
 import re
 import io
-
-
-PROPPLER_PATH = "utilities/poppler-24.08.0/Library/bin"
+import fitz
 
 
 def load_file(file, extension):
+
     if extension in ['png', 'jpg', 'jpeg']:
         im = Image.open(file)
 
@@ -17,7 +15,11 @@ def load_file(file, extension):
     else:
         if isinstance(file, io.BytesIO):
             file = file.read()
-        images = convert_from_bytes(file, poppler_path=PROPPLER_PATH)
+
+        dpi = 250  # choose desired dpi here
+        zoom = dpi / 72  # zoom factor, standard: 72 dpi
+        magnify = fitz.Matrix(zoom, zoom)
+        images = [page.get_pixmap(matrix=magnify).pil_image() for page in fitz.open(stream=file)]
         order = check_order(file)
     return images, order
 
@@ -27,14 +29,14 @@ def save_local(file):
 
 def check_order(pdf_file):
     pt1 = r"Согласие на обработку"
-    pt2 = r"Заявление"
+    pt2 = r"Заявление сформировано"
 
     save_local(pdf_file)
     with pdfplumber.open("tmp.pdf") as f:
         text = f.pages[0].extract_text()
 
-    s1 = re.search(pt1, text) is None
-    s2 = re.search(pt2, text) is None
+    s1 = re.search(pt1, text) is not None
+    s2 = re.search(pt2, text) is not None
 
     return s1 or s2
 
